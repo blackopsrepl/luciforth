@@ -67,6 +67,12 @@ static cell_t sp_pop(void) {
 	return *sp--;
 }
 
+static void f_mul(void) { cell_t v1=sp_pop(); *sp*=v1; } // TOS * NOS => TOS
+static void f_add(void) { cell_t v1=sp_pop(); *sp+=v1; } // TOS + NOS => TOS
+static void f_hail(void) {
+	printf("HAIL LUCIFER\n");
+}
+
 static xt_t *add_word(char *name, void (*prim)(void)) {
 	xt_t *xt=calloc(1, sizeof(xt_t));
 	xt->next=dictionary;
@@ -75,13 +81,22 @@ static xt_t *add_word(char *name, void (*prim)(void)) {
 	xt->prim=prim;
 	return xt;
 }
+static void f_drop(void) {sp_pop();} // discard top of stack
 static void f_words(void) { // display all defined words
 	xt_t *w;
 	for(w=dictionary;w;w=w->next) printf("%s ", w->name);
 	printf("\n");
 }
+static void f_dot(void) { // output number
+	printf("%lld ", sp_pop());
+}
 static void register_primitives(void) {
-	add_word("grimoire", f_words); // list all defined words
+	add_word("+", f_add);
+	add_word("*", f_mul);
+	add_word("hail", f_hail);
+	add_word("sacrifice", f_drop);
+	add_word("grimoire", f_words);
+	add_word(".", f_dot);
 }
 
 static void interpret(char *w) {
