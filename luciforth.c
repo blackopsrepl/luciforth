@@ -8,7 +8,14 @@
 #include <string.h> // strcmp
 #include <ctype.h> // isspace
 
+typedef long long cell_t;
+#define DATA_STACK_SIZE 32
+static cell_t sp_base[DATA_STACK_SIZE], *sp_end=sp_base+DATA_STACK_SIZE;
+static cell_t *sp=sp_base-1;
+
 static void ok(void) { // print data stack, than prompt
+	cell_t *i;
+	for(i=sp_base;i<=sp;i++) printf("%lld ", *i);
 	printf("666> ");
 }
 static int next_char(void) {
@@ -30,6 +37,19 @@ static char *word(void) { // symbol might have maximal 256 bytes
 	while(p<end && (ch=next_char()) && !isspace(ch)) *p++=ch;
 	*p=0; // zero terminated string
 	return buffer;
+}
+
+static void terminate(char *msg) {
+	fprintf(stderr, "terminated: %s\n", msg);
+	exit(1);
+}
+static void sp_push(cell_t value) {
+	if(sp==sp_end) terminate("Data stack overflow");
+	*++sp=value;
+}
+static cell_t sp_pop(void) {
+	if(sp<sp_base) terminate("Data stack underrun");
+	return *sp--;
 }
 
 int main() {
