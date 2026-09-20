@@ -91,6 +91,12 @@ static void f_words(void) { // display all defined words
 	for(w=dictionary;w;w=w->next) printf("%s ", w->name);
 	printf("\n");
 }
+static void f_type(void){ // print string at addr
+	fputs((void*)sp_pop(), stdout);
+}
+static void f_cr(void){ // newline
+	fputc('\n', stdout);
+}
 static void f_dot(void) { // output number
 	printf("%lld ", sp_pop());
 }
@@ -100,7 +106,9 @@ static void register_primitives(void) {
 	add_word("hail", f_hail);
 	add_word("sacrifice", f_drop);
 	add_word("grimoire", f_words);
+	add_word("type", f_type); // output string
 	add_word(".", f_dot);
+	add_word("cr", f_cr);
 }
 static char *to_pad(char *str) { // copy str into the scratch pad
 	static char scratch[1024];
