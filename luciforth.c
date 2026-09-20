@@ -49,7 +49,11 @@ static char *word(void) { // symbol might have maximal 256 bytes
 	char *p=buffer, ch;
 	if(!(ch=skip_space())) return 0; // no more input
 	*p++=ch;
-	while(p<end && (ch=next_char()) && !isspace(ch)) *p++=ch;
+	if(ch=='"') { // string handling
+		while(p<end && (ch=next_char()) && ch!='"') *p++=ch;
+	} else {
+		while(p<end && (ch=next_char()) && !isspace(ch)) *p++=ch;
+	}
 	*p=0; // zero terminated string
 	return buffer;
 }
@@ -98,9 +102,19 @@ static void register_primitives(void) {
 	add_word("grimoire", f_words);
 	add_word(".", f_dot);
 }
+static char *to_pad(char *str) { // copy str into the scratch pad
+	static char scratch[1024];
+	int len=strlen(str);
+	if(len>sizeof(scratch)-1) len=sizeof(scratch)-1;
+	memcpy(scratch, str, len);
+	scratch[len]=0; // zero byte at string end
+	return scratch;
+}
 
 static void interpret(char *w) {
-	if((current_xt=find(dictionary, w))) {
+	if(*w=='"') { // string handling
+		sp_push((cell_t)to_pad(w+1));
+	} else if((current_xt=find(dictionary, w))) {
 		current_xt->prim();
 	} else { // not found, may be a number
 		char *end;
