@@ -17,15 +17,18 @@ typedef struct xt_t { // Execution Token
 } xt_t;
 typedef long long cell_t;
 static xt_t *dictionary;
+static xt_t *macros; // compile time dictionary
+static xt_t **definitions=&dictionary; // where to store new words
 static xt_t **ip; // instruction pointer
 #define RETURN_STACK_SIZE 32
 static xt_t **rp_base[RETURN_STACK_SIZE], ***rp_end=rp_base+RETURN_STACK_SIZE;
 static xt_t ***rp=rp_base-1;
 static xt_t *current_xt; // current xt
-static xt_t *xt_dup, *xt_drop, *xt_interpreting, *xt_word, *xt_bye, *xt_0branch, *xt_branch; // execution tokens needed for compiling
+static xt_t *xt_dup, *xt_drop, *xt_interpreting, *xt_word, *xt_bye, *xt_lit, *xt_leave, *xt_0branch, *xt_branch; // execution tokens needed for compiling
 #define DATA_STACK_SIZE 32
 static cell_t sp_base[DATA_STACK_SIZE], *sp_end=sp_base+DATA_STACK_SIZE;
 static cell_t *sp=sp_base-1;
+static int is_compile_mode; // we are either interpreting or compiling
 #define CODE_SIZE 65536
 static xt_t *code_base[CODE_SIZE], **code=code_base, **code_end=code_base+CODE_SIZE;
 
@@ -41,7 +44,7 @@ static xt_t *find(xt_t *dict, char *w) { // find word in a dictionary chain
 static void ok(void) { // print data stack, than prompt
 	cell_t *i;
 	for(i=sp_base;i<=sp;i++) printf("%lld ", *i);
-	printf("666> ");
+	printf(is_compile_mode?"compile> ":"666> ");
 }
 static int next_char(void) {
 	static int last_char;
@@ -76,6 +79,10 @@ static void rp_push(xt_t **ip) {
 	if(rp==rp_end) terminate("return stack overflow");
 	*++rp=ip;
 }
+static xt_t **rp_pop(void) {
+	if(rp<rp_base) terminate("return stack underrun");
+	return *rp--;
+}
 static void sp_push(cell_t value) {
 	if(sp==sp_end) terminate("Data stack overflow");
 	*++sp=value;
@@ -93,8 +100,8 @@ static void f_hail(void) {
 
 static xt_t *add_word(char *name, void (*prim)(void)) {
 	xt_t *xt=calloc(1, sizeof(xt_t));
-	xt->next=dictionary;
-	dictionary=xt;
+	xt->next=*definitions;
+	*definitions=xt;
 	xt->name=strdup(name);
 	xt->prim=prim;
 	xt->data=code; // current high level code pointer, compilation target
@@ -115,6 +122,21 @@ static void f_cr(void){ // newline
 static void f_docol(void) { // VM: enter function (word)
 	rp_push(ip); // at runtime push current ip on return stack
 	ip=current_xt->data; // and continue at the high level code
+}
+static void f_colon(void) { // define a new word
+	char *w=word(); // read next word which becomes the word name
+	add_word(strdup(w), f_docol);
+	is_compile_mode=1; // switch to compile mode
+}
+static void f_semis(void) { // macro, end of definition
+	compile(xt_leave); // compile return from subroutine
+	is_compile_mode=0; // switch back to interpret mode
+}
+static void f_leave(void) { // return from subroutine
+	ip=rp_pop();
+}
+static void f_lit(void) {
+	sp_push((cell_t)*ip++);
 }
 static void f_dot(void) { // output number
 	printf("%lld ", sp_pop());
@@ -143,11 +165,19 @@ static void register_primitives(void) {
 	add_word("type", f_type); // output string
 	add_word(".", f_dot);
 	add_word("cr", f_cr);
+	add_word(":", f_colon); // define new word, enter compile mode
 	xt_bye=add_word("bye", f_bye);
+	xt_leave=add_word("leave", f_leave);
+	xt_lit=add_word("lit", f_lit);
 	xt_0branch=add_word("0branch", f_0branch);
 	xt_branch=add_word("branch", f_branch);
 	xt_word=add_word("word", f_word);
 	xt_interpreting=add_word("interpreting", f_interpreting);
+
+	definitions=&macros;
+	add_word(";", f_semis); // end of new word, leave compile mode
+
+	definitions=&dictionary;
 }
 static char *to_pad(char *str) { // copy str into the scratch pad
 	static char scratch[1024];
@@ -161,8 +191,28 @@ static xt_t *compile(xt_t *xt) {
 	if(code>=code_end) terminate("code space full");
 	return *code++=xt;
 }
+static void literal(cell_t value) {
+	compile(xt_lit); // call f_lit when executed
+	*code++=(xt_t*)value;
+}
+static void compiling(char *w) {
+	if(*w=='"') { // string handling
+		literal((cell_t)strdup(w+1)); // compile a string literal
+	} else if((current_xt=find(macros, w))) { // if word is a macro execute it immediatly
+		current_xt->prim();
+	} else if((current_xt=find(dictionary, w))) { // if word is in regular dictionary, compile it
+		*code++=current_xt;
+	} else { // not found, may be a number
+		char *end;
+		cell_t number=strtol(w, &end, 0);
+		if(*end) terminate("word not found");
+		else literal(number); // compile a number literal
+	}
+}
 
 static void interpreting(char *w) {
+	if(is_compile_mode) return compiling(w);
+
 	if(*w=='"') { // string handling
 		sp_push((cell_t)to_pad(w+1));
 	} else if((current_xt=find(dictionary, w))) {
