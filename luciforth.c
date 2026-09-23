@@ -17,10 +17,20 @@ typedef struct xt_t { // Execution Token
 } xt_t;
 typedef long long cell_t;
 static xt_t *dictionary;
+static xt_t **ip; // instruction pointer
+#define RETURN_STACK_SIZE 32
+static xt_t **rp_base[RETURN_STACK_SIZE], ***rp_end=rp_base+RETURN_STACK_SIZE;
+static xt_t ***rp=rp_base-1;
 static xt_t *current_xt; // current xt
+static xt_t *xt_dup, *xt_drop, *xt_interpreting, *xt_word, *xt_bye, *xt_0branch, *xt_branch; // execution tokens needed for compiling
 #define DATA_STACK_SIZE 32
 static cell_t sp_base[DATA_STACK_SIZE], *sp_end=sp_base+DATA_STACK_SIZE;
 static cell_t *sp=sp_base-1;
+#define CODE_SIZE 65536
+static xt_t *code_base[CODE_SIZE], **code=code_base, **code_end=code_base+CODE_SIZE;
+
+static xt_t *compile(xt_t *xt);
+static void interpreting(char *w);
 
 static xt_t *find(xt_t *dict, char *w) { // find word in a dictionary chain
 	for(;dict;dict=dict->next) if(!strcmp(dict->name, w)) return dict;
@@ -62,6 +72,10 @@ static void terminate(char *msg) {
 	fprintf(stderr, "terminated: %s\n", msg);
 	exit(1);
 }
+static void rp_push(xt_t **ip) {
+	if(rp==rp_end) terminate("return stack overflow");
+	*++rp=ip;
+}
 static void sp_push(cell_t value) {
 	if(sp==sp_end) terminate("Data stack overflow");
 	*++sp=value;
@@ -83,6 +97,7 @@ static xt_t *add_word(char *name, void (*prim)(void)) {
 	dictionary=xt;
 	xt->name=strdup(name);
 	xt->prim=prim;
+	xt->data=code; // current high level code pointer, compilation target
 	return xt;
 }
 static void f_drop(void) {sp_pop();} // discard top of stack
@@ -97,18 +112,42 @@ static void f_type(void){ // print string at addr
 static void f_cr(void){ // newline
 	fputc('\n', stdout);
 }
+static void f_docol(void) { // VM: enter function (word)
+	rp_push(ip); // at runtime push current ip on return stack
+	ip=current_xt->data; // and continue at the high level code
+}
 static void f_dot(void) { // output number
 	printf("%lld ", sp_pop());
 }
+static void f_bye(void) { // close the Abattoir politely
+	puts("The Abattoir falls silent.");
+	exit(0);
+}
+static void f_branch(void) { ip=(void*)*ip; } // unconditional jump
+static void f_0branch(void) { // jump if top of stack is zero
+	if(sp_pop()) ip++;
+	else         ip=(void*)*ip;
+}
+static void f_word(void) { sp_push((cell_t)word()); }
+static void f_interpreting(void) {
+	interpreting((void*)sp_pop());
+}
+static void f_dup(void){cell_t t=*sp; sp_push(t);}
 static void register_primitives(void) {
 	add_word("+", f_add);
 	add_word("*", f_mul);
 	add_word("hail", f_hail);
-	add_word("sacrifice", f_drop);
+	xt_drop=add_word("sacrifice", f_drop);
+	xt_dup=add_word("dup", f_dup);
 	add_word("grimoire", f_words);
 	add_word("type", f_type); // output string
 	add_word(".", f_dot);
 	add_word("cr", f_cr);
+	xt_bye=add_word("bye", f_bye);
+	xt_0branch=add_word("0branch", f_0branch);
+	xt_branch=add_word("branch", f_branch);
+	xt_word=add_word("word", f_word);
+	xt_interpreting=add_word("interpreting", f_interpreting);
 }
 static char *to_pad(char *str) { // copy str into the scratch pad
 	static char scratch[1024];
@@ -118,8 +157,12 @@ static char *to_pad(char *str) { // copy str into the scratch pad
 	scratch[len]=0; // zero byte at string end
 	return scratch;
 }
+static xt_t *compile(xt_t *xt) {
+	if(code>=code_end) terminate("code space full");
+	return *code++=xt;
+}
 
-static void interpret(char *w) {
+static void interpreting(char *w) {
 	if(*w=='"') { // string handling
 		sp_push((cell_t)to_pad(w+1));
 	} else if((current_xt=find(dictionary, w))) {
@@ -131,12 +174,32 @@ static void interpret(char *w) {
 		else sp_push(number);
 	}
 }
-
+static void vm(void) {
+	for(;;) {
+		current_xt=*ip++;
+		current_xt->prim();
+	}
+}
 int main() {
 	puts("Luciforth - the Abattoir is open.");
 	register_primitives();
 
-	char *w;
-	while((w=word())) interpret(w);
+	/* the interpreter is compiled by hand */
+	add_word("shell", f_docol); // define a new high level word
+	xt_t **begin=code;       // save current code pointer for loop back
+	compile(xt_word);        // get the next word on data stack
+	compile(xt_dup);
+	compile(xt_0branch);     // jump to end if top of stack is null
+	xt_t **here=code++;      // forward jump reference
+	compile(xt_interpreting);// interpret the word on top of stack
+	compile(xt_branch);      // loop back to begin of this word
+	*code++=(void*)begin;    // Loop back address
+	*here=(void*)code;       // resolve reference
+	*code++=xt_drop;
+	*code++=xt_bye;          // leave VM
+
+	ip=begin;                // set instruction pointer
+	vm();                    // and run the vm
+
 	return 0;
 }
