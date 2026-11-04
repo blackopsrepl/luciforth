@@ -24,7 +24,7 @@ static xt_t **ip; // instruction pointer
 static xt_t **rp_base[RETURN_STACK_SIZE], ***rp_end=rp_base+RETURN_STACK_SIZE;
 static xt_t ***rp=rp_base-1;
 static xt_t *current_xt; // current xt
-static xt_t *xt_dup, *xt_drop, *xt_interpreting, *xt_word, *xt_bye, *xt_lit, *xt_leave, *xt_0branch, *xt_branch; // execution tokens needed for compiling
+static xt_t *xt_dup, *xt_drop, *xt_interpreting, *xt_word, *xt_bye, *xt_lit, *xt_leave, *xt_0branch, *xt_1branch, *xt_branch; // execution tokens needed for compiling
 #define DATA_STACK_SIZE 32
 static cell_t sp_base[DATA_STACK_SIZE], *sp_end=sp_base+DATA_STACK_SIZE;
 static cell_t *sp=sp_base-1;
@@ -148,6 +148,17 @@ static void f_then(void) { // macro, resolve forward reference given by f_if or 
 	xt_t ***dest=(void*)sp_pop();
 	*dest=code; // resolve forward reference given by f_if or f_else
 }
+static void f_begin(void) { // macro, remember the loop start
+	sp_push((cell_t)code); // push current compilation address for loop
+}
+static void f_while(void) { // macro, jump back to begin while the flag is not zero
+	compile(xt_1branch); // compile a jump if not zero
+	*code++=(void*)sp_pop(); // jump back to f_begin address
+}
+static void f_again(void) { // macro, jump back to begin unconditionally
+	compile(xt_branch); // compile a jump
+	*code++=(void*)sp_pop(); // jump back to f_begin address
+}
 static void f_leave(void) { // return from subroutine
 	ip=rp_pop();
 }
@@ -165,6 +176,10 @@ static void f_branch(void) { ip=(void*)*ip; } // unconditional jump
 static void f_0branch(void) { // jump if top of stack is zero
 	if(sp_pop()) ip++;
 	else         ip=(void*)*ip;
+}
+static void f_1branch(void) { // jump if top of stack is not zero
+	if(sp_pop()) ip=(void*)*ip;
+	else         ip++;
 }
 static void f_word(void) { sp_push((cell_t)word()); }
 static void f_interpreting(void) {
@@ -195,6 +210,7 @@ static void register_primitives(void) {
 	xt_leave=add_word("leave", f_leave);
 	xt_lit=add_word("lit", f_lit);
 	xt_0branch=add_word("0branch", f_0branch);
+	xt_1branch=add_word("1branch", f_1branch); // jump on not zero
 	xt_branch=add_word("branch", f_branch);
 	xt_word=add_word("word", f_word);
 	xt_interpreting=add_word("interpreting", f_interpreting);
@@ -204,6 +220,9 @@ static void register_primitives(void) {
 	add_word("if", f_if); // compiles an if condition
 	add_word("then", f_then); // this is the endif
 	add_word("else", f_else);
+	add_word("begin", f_begin); // begin of a loop
+	add_word("while", f_while); // conditional jump back to begin
+	add_word("again", f_again); // unconditional jump back to begin
 
 	definitions=&dictionary;
 }

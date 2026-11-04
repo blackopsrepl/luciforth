@@ -41,7 +41,8 @@ the most recently read string.
 | `swap` | `( a b -- b a )` | swap the top two cells |
 | `:` … `;` | | define a new word |
 | `if` … `then` | | compile a conditional; `else` for the other branch |
-| `begin` … `again` | | compile an endless loop |
+| `begin` … `while` | | run the loop while the flag is not zero |
+| `begin` … `again` | | loop forever |
 | `bye` | `( -- )` | leave the Abattoir |
 
 ## Example
@@ -56,6 +57,11 @@ HAIL LUCIFER
 666> 5 sq .
 25 666> "Hello World" type cr
 Hello World
+666> : countdown begin dup . cr 1 - dup while sacrifice ;
+666> 3 countdown
+3
+2
+1
 666> bye
 The Abattoir falls silent.
 ```
@@ -71,6 +77,10 @@ While a definition is open the prompt reads `compile>`.
 - Compiled words are indirect threaded code: the code space holds a plain
   array of execution-token pointers, and `vm()` fetches one token at a time
   and calls its primitive.
+- Control flow is compile-time macros over two jump primitives: `if`/`else`/
+  `then` compile forward branches and patch their holes; `begin`/`while`/
+  `again` branch back to the recorded loop start, all holding their state on
+  the data stack.
 - `:` defines a word and enters compile mode; `;` is an immediate word that
   compiles a return and leaves compile mode. Compile-time words live in a
   separate macro dictionary.
