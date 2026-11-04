@@ -40,6 +40,8 @@ the most recently read string.
 | `dup` | `( x -- x x )` | duplicate the top of stack |
 | `swap` | `( a b -- b a )` | swap the top two cells |
 | `:` … `;` | | define a new word |
+| `if` … `then` | | compile a conditional; `else` for the other branch |
+| `begin` … `again` | | compile an endless loop |
 | `bye` | `( -- )` | leave the Abattoir |
 
 ## Example

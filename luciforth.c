@@ -134,6 +134,20 @@ static void f_semis(void) { // macro, end of definition
 	compile(xt_leave); // compile return from subroutine
 	is_compile_mode=0; // switch back to interpret mode
 }
+static void f_if(void) { // macro, compile a jump on zero and hold its target hole
+	compile(xt_0branch);
+	sp_push((cell_t)code++); // push forward reference on stack
+}
+static void f_else(void) { // macro, resolve if's hole, open one for the else branch
+	xt_t ***dest=(void*)sp_pop(); // pop address (from f_if)
+	compile(xt_branch); // compile a jump
+	sp_push((cell_t)code++); // push forward reference on stack
+	*dest=code; // resolve forward reference given by f_if
+}
+static void f_then(void) { // macro, resolve forward reference given by f_if or f_else
+	xt_t ***dest=(void*)sp_pop();
+	*dest=code; // resolve forward reference given by f_if or f_else
+}
 static void f_leave(void) { // return from subroutine
 	ip=rp_pop();
 }
@@ -187,6 +201,9 @@ static void register_primitives(void) {
 
 	definitions=&macros;
 	add_word(";", f_semis); // end of new word, leave compile mode
+	add_word("if", f_if); // compiles an if condition
+	add_word("then", f_then); // this is the endif
+	add_word("else", f_else);
 
 	definitions=&dictionary;
 }
