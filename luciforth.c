@@ -94,6 +94,8 @@ static cell_t sp_pop(void) {
 
 static void f_mul(void) { cell_t v1=sp_pop(); *sp*=v1; } // TOS * NOS => TOS
 static void f_add(void) { cell_t v1=sp_pop(); *sp+=v1; } // TOS + NOS => TOS
+static void f_sub(void) { cell_t v1=sp_pop(); *sp-=v1; } // TOS - NOS => TOS
+static void f_div(void) { cell_t v1=sp_pop(); *sp/=v1; } // TOS / NOS => TOS
 static void f_hail(void) {
 	printf("HAIL LUCIFER\n");
 }
@@ -155,12 +157,21 @@ static void f_interpreting(void) {
 	interpreting((void*)sp_pop());
 }
 static void f_dup(void){cell_t t=*sp; sp_push(t);}
+static void f_swap(void) { // swap top two cells
+	cell_t t=*sp;
+	*sp=sp[-1];
+	sp[-1]=t;
+}
 static void register_primitives(void) {
 	add_word("+", f_add);
-	add_word("*", f_mul);
+	add_word("-", f_sub); // luciforth fix: the original registered f_sub as a stray ".",
+	                      // shadowed by the real "." below, so subtraction was unreachable
+	add_word("*", f_mul); //top of stack (TOS) * next of stack => TOS
+	add_word("/", f_div);
 	add_word("hail", f_hail);
 	xt_drop=add_word("sacrifice", f_drop);
 	xt_dup=add_word("dup", f_dup);
+	add_word("swap", f_swap);
 	add_word("grimoire", f_words);
 	add_word("type", f_type); // output string
 	add_word(".", f_dot);

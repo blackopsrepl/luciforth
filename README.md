@@ -34,8 +34,11 @@ the most recently read string.
 | `cr` | `( -- )` | emit a newline |
 | `type` | `( addr -- )` | print the string at `addr` |
 | `+` | `( a b -- c )` | add the top two cells |
+| `-` | `( a b -- c )` | subtract the top cell from the one below |
 | `*` | `( a b -- c )` | multiply the top two cells |
+| `/` | `( a b -- c )` | divide the cell below by the top cell |
 | `dup` | `( x -- x x )` | duplicate the top of stack |
+| `swap` | `( a b -- b a )` | swap the top two cells |
 | `:` … `;` | | define a new word |
 | `bye` | `( -- )` | leave the Abattoir |
 
