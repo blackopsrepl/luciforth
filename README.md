@@ -46,6 +46,10 @@ the most recently read string.
 | `'` | `( -- xt )` | push the execution token of the next word |
 | `see` | | disassemble a word's thread |
 | `dis` | | disassemble a thread until `leave` |
+| `execute` | `( xt -- )` | run the execution token on the stack |
+| `exit` | `( -- )` | return from the current definition |
+| `xt>name` | `( xt -- name )` | turn a token into its name |
+| `xt>data` | `( xt -- addr )` | turn a token into its thread |
 | `bye` | `( -- )` | leave the Abattoir |
 
 ## Example
@@ -68,7 +72,8 @@ Hello World
 666> see sq
 0x405408 dup
 0x405410 *
-666> bye
+666> 5 ' sq execute .
+25 666> bye
 The Abattoir falls silent.
 ```
 
@@ -96,6 +101,12 @@ While a definition is open the prompt reads `compile>`.
   separate macro dictionary.
 - The outer interpreter itself is a threaded word (`shell`), compiled by hand
   at start-up.
+
+## Deliberately not built
+
+Faithful to the original course's scope: no file handling, no exceptions, no
+debugger with breakpoints and single-stepping, no preemptive multitasking.
+Every one of them builds easily on the threads you can now `see`.
 
 ## Provenance
 

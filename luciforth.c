@@ -216,6 +216,22 @@ static void f_see(void) { // disassemble a word's thread
 	*sp=(cell_t)xt->data;
 	f_dis();
 }
+static void f_exit(void) { // same as leave, but leave is used
+                           // to recognize the end of assembling
+	ip=rp_pop();
+}
+static void f_execute(void) { // run the execution token on the stack
+	xt_t *cur=current_xt; // save, the executed word needs the right current_xt
+	current_xt=(void*)sp_pop();
+	current_xt->prim();
+	current_xt=cur;
+}
+static void f_xt_to_name(void) { // execution token to its name
+	*sp=(cell_t)((xt_t*)*sp)->name;
+}
+static void f_xt_to_data(void) { // execution token to its thread
+	*sp=(cell_t)((xt_t*)*sp)->data;
+}
 static void register_primitives(void) {
 	add_word("+", f_add);
 	add_word("-", f_sub); // luciforth fix: the original registered f_sub as a stray ".",
@@ -246,6 +262,10 @@ static void register_primitives(void) {
 	add_word("'", f_tick); // ' <word> => execution token on stack
 	add_word("see", f_see); // disassemble a word's thread
 	add_word("dis", f_dis); // disassemble a thread until leave
+	add_word("exit", f_exit); // return from a definition, works while compiling
+	add_word("execute", f_execute); // run the execution token on the stack
+	add_word("xt>data", f_xt_to_data); // execution token to its thread
+	add_word("xt>name", f_xt_to_name); // execution token to its name
 
 	definitions=&macros;
 	add_word(";", f_semis); // end of new word, leave compile mode
