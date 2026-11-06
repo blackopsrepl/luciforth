@@ -43,6 +43,9 @@ the most recently read string.
 | `if` … `then` | | compile a conditional; `else` for the other branch |
 | `begin` … `while` | | run the loop while the flag is not zero |
 | `begin` … `again` | | loop forever |
+| `'` | `( -- xt )` | push the execution token of the next word |
+| `see` | | disassemble a word's thread |
+| `dis` | | disassemble a thread until `leave` |
 | `bye` | `( -- )` | leave the Abattoir |
 
 ## Example
@@ -62,6 +65,9 @@ Hello World
 3
 2
 1
+666> see sq
+0x405408 dup
+0x405410 *
 666> bye
 The Abattoir falls silent.
 ```
@@ -81,6 +87,10 @@ While a definition is open the prompt reads `compile>`.
   `then` compile forward branches and patch their holes; `begin`/`while`/
   `again` branch back to the recorded loop start, all holding their state on
   the data stack.
+- Introspection: in indirect threaded code the thread *is* the disassembly —
+  `see` walks a definition thread cell by cell, printing each word's name and
+  the cells that literal-eating words (`lit`, `branch`, `0branch`, `1branch`)
+  consume.
 - `:` defines a word and enters compile mode; `;` is an immediate word that
   compiles a return and leaves compile mode. Compile-time words live in a
   separate macro dictionary.

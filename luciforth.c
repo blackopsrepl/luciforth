@@ -20,6 +20,7 @@ static xt_t *dictionary;
 static xt_t *macros; // compile time dictionary
 static xt_t **definitions=&dictionary; // where to store new words
 static xt_t **ip; // instruction pointer
+static xt_t *latest; // last defined word
 #define RETURN_STACK_SIZE 32
 static xt_t **rp_base[RETURN_STACK_SIZE], ***rp_end=rp_base+RETURN_STACK_SIZE;
 static xt_t ***rp=rp_base-1;
@@ -107,7 +108,7 @@ static xt_t *add_word(char *name, void (*prim)(void)) {
 	xt->name=strdup(name);
 	xt->prim=prim;
 	xt->data=code; // current high level code pointer, compilation target
-	return xt;
+	return latest=xt; // last defined word, to decorate it right away
 }
 static void f_drop(void) {sp_pop();} // discard top of stack
 static void f_words(void) { // display all defined words
@@ -191,6 +192,30 @@ static void f_swap(void) { // swap top two cells
 	*sp=sp[-1];
 	sp[-1]=t;
 }
+static void f_dis(void) { // disassembler, print the thread until leave
+	xt_t **ip=(void*)sp_pop();
+	for(; (*ip)->prim!=f_leave;ip++) {
+		xt_t *xt=*ip;
+		if(xt->has_lit) {
+			printf("%p %s %p\n", ip, xt->name, ip[1]);
+			ip++;
+		} else {
+			printf("%p %s\n", ip, xt->name);
+		}
+	}
+}
+static void f_tick(void) { // ' <word>, push its execution token
+	char *w=word();
+	xt_t *xt=find(dictionary, w);
+	if(xt) sp_push((cell_t)xt);
+	else   terminate("word not found");
+}
+static void f_see(void) { // disassemble a word's thread
+	f_tick();
+	xt_t *xt=(xt_t*)(*sp);
+	*sp=(cell_t)xt->data;
+	f_dis();
+}
 static void register_primitives(void) {
 	add_word("+", f_add);
 	add_word("-", f_sub); // luciforth fix: the original registered f_sub as a stray ".",
@@ -209,11 +234,18 @@ static void register_primitives(void) {
 	xt_bye=add_word("bye", f_bye);
 	xt_leave=add_word("leave", f_leave);
 	xt_lit=add_word("lit", f_lit);
+	latest->has_lit=1; // this word consumes the next thread cell as data
 	xt_0branch=add_word("0branch", f_0branch);
+	latest->has_lit=1;
 	xt_1branch=add_word("1branch", f_1branch); // jump on not zero
+	latest->has_lit=1;
 	xt_branch=add_word("branch", f_branch);
+	latest->has_lit=1;
 	xt_word=add_word("word", f_word);
 	xt_interpreting=add_word("interpreting", f_interpreting);
+	add_word("'", f_tick); // ' <word> => execution token on stack
+	add_word("see", f_see); // disassemble a word's thread
+	add_word("dis", f_dis); // disassemble a thread until leave
 
 	definitions=&macros;
 	add_word(";", f_semis); // end of new word, leave compile mode
